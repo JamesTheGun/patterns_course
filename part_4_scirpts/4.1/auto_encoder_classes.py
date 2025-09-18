@@ -46,4 +46,23 @@ class Decoder(nn.Module):
         x = F.relu(self.deconv2(x))
         x = torch.sigmoid(self.deconv3(x))  # output in [0,1]
         return x
+    
+class VAE(nn.Module):
+    """Full VAE model (Encoder + reparam + Decoder)."""
+    def __init__(self, latent_dim=32, base_filters=8):
+        super().__init__()
+        self.encoder = Encoder(latent_dim, base_filters)
+        self.decoder = Decoder(latent_dim, base_filters)
+
+    def reparameterize(self, mu, logvar):
+        """Sample z ~ N(mu, sigma^2) using reparameterization trick."""
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return mu + eps * std
+
+    def forward(self, x):
+        mu, logvar = self.encoder(x)
+        z = self.reparameterize(mu, logvar)
+        recon = self.decoder(z)
+        return recon, mu, logvar
 
