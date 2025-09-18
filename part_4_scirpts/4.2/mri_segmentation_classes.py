@@ -39,3 +39,38 @@ class DoubleConv(nn.Module):
         )
     def forward(self, x):
         return self.net(x)
+    
+class UNet(nn.Module):
+    def __init__(self, n_classes, base_filters=8):
+        super().__init__()
+        self.down1 = DoubleConv(1, base_filters)
+        self.down2 = DoubleConv(base_filters, base_filters*2)
+        self.down3 = DoubleConv(base_filters*2, base_filters*4)
+        self.down4 = DoubleConv(base_filters*4, base_filters*8)
+
+        self.pool = nn.MaxPool2d(2)
+        self.up4 = nn.ConvTranspose2d(base_filters*8, base_filters*8, 2, stride=2)
+        self.conv_up3 = DoubleConv(base_filters*8+base_filters*4, base_filters*4)
+        self.conv_up2 = DoubleConv(base_filters*4+base_filters*2, base_filters*2)
+        self.conv_up1 = DoubleConv(base_filters*2+base_filters, base_filters)
+        self.out_conv = nn.Conv2d(base_filters, n_classes, 1)
+
+    def forward(self, x):
+        c1 = self.down1(x)
+        x = self.pool(c1)
+        c2 = self.down2(x)
+        x = self.pool(c2)
+        c3 = self.down3(x)
+        x = self.pool(c3)
+        x = self.down4(x)
+
+        x = self.up4(x)
+        x = torch.cat([x, c3], dim=1)
+        x = self.conv_up3(x)
+        x = F.interpolate(x, scale_factor=2, mode="bilinear", align_corners=True)
+        x = torch.cat([x, c2], dim=1)
+        x = self.conv_up2(x)
+        x = F.interpolate(x, scale_factor=2, mode="bilinear", align_corners=True)
+        x = torch.cat([x, c1], dim=1)
+        x = self.conv_up1(x)
+        return self.out_conv(x)
